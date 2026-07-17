@@ -15,17 +15,26 @@
 <body>
   <main class="app" id="homeView">
     <header class="header">
-      <div class="header-info"><span>Olá, Guilherme 👋</span><h1>Finance Premium</h1></div>
+      <div class="header-info"><span id="saudacaoHeader">Olá, Guilherme 👋</span><h1>Finance Premium</h1></div>
       <button class="profile-btn" type="button" aria-label="Perfil">👤</button>
     </header>
 
-    <section class="saldo-card"><p>Saldo disponível</p><h2 id="saldo">R$ 0,00</h2><small id="atualizacao">Atualizado agora</small></section>
+    <section class="saldo-card">
+      <div class="saldo-top"><p>Saldo disponível</p><span class="saldo-data" id="dataAtual"></span></div>
+      <h2 id="saldo">R$ 0,00</h2>
+      <div class="saldo-trend" id="saldoTrend"></div>
+    </section>
 
     <section class="cards-scroll" aria-label="Resumo financeiro">
-      <div class="mini-card receita"><span>Receitas</span><h3 id="receitas">R$ 0,00</h3></div>
-      <div class="mini-card despesa"><span>Despesas</span><h3 id="despesas">R$ 0,00</h3></div>
-      <div class="mini-card investimento"><span>Economizado</span><h3 id="economia">R$ 0,00</h3></div>
-      <div class="mini-card cartao"><span>Cartão</span><h3 id="cartao">R$ 0,00</h3></div>
+      <div class="mini-card receita"><span class="mini-icone">💰</span><span>Receitas</span><h3 id="receitas">R$ 0,00</h3></div>
+      <div class="mini-card despesa"><span class="mini-icone">💸</span><span>Despesas</span><h3 id="despesas">R$ 0,00</h3></div>
+      <div class="mini-card investimento"><span class="mini-icone">🐷</span><span>Economizado</span><h3 id="economia">R$ 0,00</h3></div>
+      <div class="mini-card cartao"><span class="mini-icone">💳</span><span>Cartão</span><h3 id="cartao">R$ 0,00</h3></div>
+    </section>
+
+    <section class="card destaque-card" id="destaqueCard" hidden>
+      <div class="destaque-icone" id="destaqueIcone"></div>
+      <div><span style="color:var(--muted);font-size:13px">Maior gasto do mês</span><strong id="destaqueTexto"></strong></div>
     </section>
 
     <section class="card grafico-card"><h2 class="titulo-card">Gastos do mês</h2><div class="grafico-wrap"><canvas id="graficoFinanceiro" aria-label="Gráfico de receitas e despesas"></canvas><p id="graficoVazio">Adicione lançamentos para visualizar o gráfico.</p></div></section>
@@ -51,16 +60,51 @@
 
     <section class="transacoes"><div class="secao-header"><h2>Transações</h2><button id="limparTudo" type="button">Limpar tudo</button></div><div id="lancamentos"></div></section>
   </main>
+
   <main class="app view" id="relatoriosView" hidden>
     <header class="page-header"><span>Visão geral</span><h1>Relatórios</h1></header>
+    <div class="filtro-periodo" id="filtroPeriodo">
+      <button type="button" class="filtro-btn active" data-periodo="mes">Este mês</button>
+      <button type="button" class="filtro-btn" data-periodo="anterior">Mês passado</button>
+      <button type="button" class="filtro-btn" data-periodo="tudo">Tudo</button>
+    </div>
     <section class="card"><h2 class="titulo-card">Resumo do período</h2><div id="resumoRelatorio" class="resumo-relatorio"></div></section>
     <section class="card"><h2 class="titulo-card">Despesas por categoria</h2><div id="categoriasRelatorio" class="lista-categorias"></div></section>
   </main>
+
   <main class="app view" id="metasView" hidden>
     <header class="page-header"><span>Planejamento</span><h1>Metas</h1></header>
     <section class="card"><h2 class="titulo-card">Nova meta</h2><form id="formMeta" class="form-group"><input id="nomeMeta" maxlength="60" placeholder="Ex.: Viagem de férias" required><input id="valorMeta" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="Valor da meta" required><button class="btn-primary" type="submit">Criar meta</button></form></section>
     <section><div class="secao-header"><h2>Suas metas</h2></div><div id="listaMetas"></div></section>
   </main>
+
+  <main class="app view" id="ajustesView" hidden>
+    <header class="page-header"><span>Preferências</span><h1>Ajustes</h1></header>
+    <section class="card">
+      <h2 class="titulo-card">Aparência</h2>
+      <div class="tema-switch">
+        <span>Tema escuro</span>
+        <button id="toggleTema" type="button" class="switch" aria-pressed="true"><i></i></button>
+      </div>
+    </section>
+    <section class="card">
+      <h2 class="titulo-card">Backup</h2>
+      <div class="ajustes-linha">
+        <button type="button" id="exportarBackup" class="btn-secundario">⬇️ Exportar dados</button>
+        <button type="button" id="importarBackup" class="btn-secundario">⬆️ Importar dados</button>
+        <input type="file" id="arquivoBackup" accept="application/json" hidden>
+      </div>
+    </section>
+    <section class="card">
+      <h2 class="titulo-card">Dados</h2>
+      <button type="button" id="resetarApp" class="btn-perigo">Apagar todos os dados</button>
+    </section>
+    <section class="card">
+      <h2 class="titulo-card">Sobre</h2>
+      <p class="sobre-texto">Finance Premium v1.0 — seus dados ficam salvos apenas neste dispositivo.</p>
+    </section>
+  </main>
+
   <button class="fab" id="focoFormulario" type="button" aria-label="Adicionar lançamento">+</button>
   <nav class="bottom-nav" aria-label="Navegação principal"><button class="active" type="button" data-view="home">🏠<span>Home</span></button><button type="button" data-view="relatorios">📊<span>Relatórios</span></button><button type="button" data-view="metas">🎯<span>Metas</span></button><button type="button" data-view="ajustes">⚙️<span>Ajustes</span></button></nav>
   <script src="script.js"></script>
