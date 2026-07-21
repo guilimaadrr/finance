@@ -37,28 +37,51 @@
       <div><span style="color:var(--muted);font-size:13px">Maior gasto do mês</span><strong id="destaqueTexto"></strong></div>
     </section>
 
-    <section class="card grafico-card"><h2 class="titulo-card">Gastos do mês</h2><div class="grafico-wrap"><canvas id="graficoFinanceiro" aria-label="Gráfico de receitas e despesas"></canvas><p id="graficoVazio">Adicione lançamentos para visualizar o gráfico.</p></div></section>
+    <section class="card grafico-card">
+      <h2 class="titulo-card">Gastos do mês</h2>
+      <div class="grafico-wrap"><canvas id="graficoFinanceiro" aria-label="Gráfico de receitas e despesas"></canvas><p id="graficoVazio">Adicione lançamentos para visualizar o gráfico.</p></div>
+      <div class="grafico-legenda" id="graficoLegenda"></div>
+    </section>
 
-    <section class="card"><h2 class="titulo-card">Novo lançamento</h2>
+    <section class="card">
+      <h2 class="titulo-card">Novo lançamento</h2>
+      <div class="tipo-tabs">
+        <button type="button" class="tipo-tab" data-tipo="despesa">Despesa</button>
+        <button type="button" class="tipo-tab active" data-tipo="receita">Receita</button>
+      </div>
       <form id="formLancamento" class="form-group">
         <input id="descricao" maxlength="80" placeholder="Descrição" autocomplete="off" required>
         <input id="valor" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="Valor" required>
-        <select id="tipo"><option value="receita">Receita</option><option value="despesa">Despesa</option></select>
-        <select id="categoria" aria-label="Categoria do lançamento">
-          <option value="geral">Geral</option>
-          <option value="cartao">Cartão</option>
-          <option value="alimentacao">Alimentação</option>
-          <option value="moradia">Moradia</option>
-          <option value="transporte">Transporte</option>
-          <option value="lazer">Lazer</option>
-          <option value="saude">Saúde</option>
-          <option value="investimento">Investimento</option>
-        </select>
-        <button class="btn-primary" type="submit">Adicionar lançamento</button>
+        <select id="categoria" aria-label="Categoria do lançamento"></select>
+        <label class="campo-label">Data de vencimento</label>
+        <input id="dataVencimento" type="date" required>
+        <div class="recorrencia-tabs">
+          <button type="button" class="recorrencia-btn active" data-recorrencia="nao">Não repetir</button>
+          <button type="button" class="recorrencia-btn" data-recorrencia="sempre">Sempre</button>
+          <button type="button" class="recorrencia-btn" data-recorrencia="parcelado">Parcelado</button>
+        </div>
+        <input id="numeroParcelas" type="number" min="2" max="60" step="1" inputmode="numeric" placeholder="Em quantas parcelas?" hidden>
+        <p class="form-erro" id="erroLancamento" hidden></p>
+        <button class="btn-primary" type="submit">Salvar</button>
       </form>
     </section>
 
-    <section class="transacoes"><div class="secao-header"><h2>Transações</h2><button id="limparTudo" type="button">Limpar tudo</button></div><div id="lancamentos"></div></section>
+    <section class="transacoes">
+      <div class="secao-header"><h2>Transações</h2><button id="limparTudo" type="button">Limpar tudo</button></div>
+      <div class="mes-nav">
+        <button type="button" id="mesAnterior" aria-label="Mês anterior">‹</button>
+        <span id="mesAtualLabel"></span>
+        <button type="button" id="mesProximo" aria-label="Próximo mês">›</button>
+      </div>
+      <div class="tabs-transacoes">
+        <button type="button" class="tab-transacao active" data-aba="todos">Todos</button>
+        <button type="button" class="tab-transacao" data-aba="receitas">Receitas</button>
+        <button type="button" class="tab-transacao" data-aba="despesas">Despesas</button>
+      </div>
+      <div class="resumo-mes-card" id="resumoMesCard"></div>
+      <div id="lancamentos"></div>
+      <div id="detalheLancamento"></div>
+    </section>
   </main>
 
   <main class="app view" id="relatoriosView" hidden>
@@ -74,7 +97,7 @@
 
   <main class="app view" id="metasView" hidden>
     <header class="page-header"><span>Planejamento</span><h1>Metas</h1></header>
-    <section class="card"><h2 class="titulo-card">Nova meta</h2><form id="formMeta" class="form-group"><input id="nomeMeta" maxlength="60" placeholder="Ex.: Viagem de férias" required><input id="valorMeta" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="Valor da meta" required><button class="btn-primary" type="submit">Criar meta</button></form></section>
+    <section class="card"><h2 class="titulo-card">Nova meta</h2><form id="formMeta" class="form-group"><input id="nomeMeta" maxlength="60" placeholder="Ex.: Viagem de férias" required><input id="valorMeta" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="Valor da meta" required><p class="form-erro" id="erroMeta" hidden></p><button class="btn-primary" type="submit">Criar meta</button></form></section>
     <section><div class="secao-header"><h2>Suas metas</h2></div><div id="listaMetas"></div></section>
   </main>
 
@@ -86,6 +109,11 @@
         <span>Tema escuro</span>
         <button id="toggleTema" type="button" class="switch" aria-pressed="true"><i></i></button>
       </div>
+    </section>
+    <section class="card">
+      <h2 class="titulo-card">Categorias</h2>
+      <div class="categorias-lista" id="categoriasLista"></div>
+      <button type="button" id="abrirNovaCategoria" class="btn-secundario">+ Nova categoria</button>
     </section>
     <section class="card">
       <h2 class="titulo-card">Backup</h2>
@@ -107,6 +135,13 @@
 
   <button class="fab" id="focoFormulario" type="button" aria-label="Adicionar lançamento">+</button>
   <nav class="bottom-nav" aria-label="Navegação principal"><button class="active" type="button" data-view="home">🏠<span>Home</span></button><button type="button" data-view="relatorios">📊<span>Relatórios</span></button><button type="button" data-view="metas">🎯<span>Metas</span></button><button type="button" data-view="ajustes">⚙️<span>Ajustes</span></button></nav>
+  <div class="modal-overlay" id="modalOverlay" hidden>
+    <div class="modal-sheet" role="dialog" aria-modal="true">
+      <div class="modal-handle"></div>
+      <h3 class="modal-titulo" id="modalTitulo"></h3>
+      <div class="modal-corpo" id="modalCorpo"></div>
+    </div>
+  </div>
   <script src="script.js"></script>
 </body>
 </html>
