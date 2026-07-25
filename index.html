@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Finance">
-  <title>Nexora Finance</title>
+  <title>Finance Premium</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icons/icon.svg">
   <link rel="stylesheet" href="style.css">
@@ -15,7 +15,7 @@
 <body>
   <main class="app" id="homeView">
     <header class="header">
-      <div class="header-info"><span id="saudacaoHeader">Olá, Guilherme 👋</span><h1>Nexora Finance</h1></div>
+      <div class="header-info"><span id="saudacaoHeader">Olá, Guilherme 👋</span><h1>Finance Premium</h1></div>
       <button class="profile-btn" type="button" aria-label="Perfil">👤</button>
     </header>
 
@@ -41,29 +41,6 @@
       <h2 class="titulo-card">Gastos do mês</h2>
       <div class="grafico-wrap"><canvas id="graficoFinanceiro" aria-label="Gráfico de receitas e despesas"></canvas><p id="graficoVazio">Adicione lançamentos para visualizar o gráfico.</p></div>
       <div class="grafico-legenda" id="graficoLegenda"></div>
-    </section>
-
-    <section class="card">
-      <h2 class="titulo-card">Novo lançamento</h2>
-      <div class="tipo-tabs">
-        <button type="button" class="tipo-tab" data-tipo="despesa">Despesa</button>
-        <button type="button" class="tipo-tab active" data-tipo="receita">Receita</button>
-      </div>
-      <form id="formLancamento" class="form-group">
-        <input id="descricao" maxlength="80" placeholder="Descrição" autocomplete="off" required>
-        <input id="valor" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="Valor" required>
-        <select id="categoria" aria-label="Categoria do lançamento"></select>
-        <label class="campo-label">Data de vencimento</label>
-        <input id="dataVencimento" type="date" required>
-        <div class="recorrencia-tabs">
-          <button type="button" class="recorrencia-btn active" data-recorrencia="nao">Não repetir</button>
-          <button type="button" class="recorrencia-btn" data-recorrencia="sempre">Sempre</button>
-          <button type="button" class="recorrencia-btn" data-recorrencia="parcelado">Parcelado</button>
-        </div>
-        <input id="numeroParcelas" type="number" min="2" max="60" step="1" inputmode="numeric" placeholder="Em quantas parcelas?" hidden>
-        <p class="form-erro" id="erroLancamento" hidden></p>
-        <button class="btn-primary" type="submit">Salvar</button>
-      </form>
     </section>
 
     <section class="transacoes">
@@ -129,12 +106,18 @@
     </section>
     <section class="card">
       <h2 class="titulo-card">Sobre</h2>
-      <p class="sobre-texto">Nexora Finance v1.0 — seus dados ficam salvos apenas neste dispositivo.</p>
+      <p class="sobre-texto">Finance Premium v1.0 — seus dados ficam salvos apenas neste dispositivo.</p>
     </section>
   </main>
 
-  <button class="fab" id="focoFormulario" type="button" aria-label="Adicionar lançamento">+</button>
-  <nav class="bottom-nav" aria-label="Navegação principal"><button class="active" type="button" data-view="home">🏠<span>Home</span></button><button type="button" data-view="relatorios">📊<span>Relatórios</span></button><button type="button" data-view="metas">🎯<span>Metas</span></button><button type="button" data-view="ajustes">⚙️<span>Ajustes</span></button></nav>
+  <nav class="bottom-nav" aria-label="Navegação principal">
+    <button class="nav-btn active" type="button" data-view="home">🏠<span>Home</span></button>
+    <button class="nav-btn" type="button" data-view="relatorios">📊<span>Relatórios</span></button>
+    <button class="nav-fab" id="focoFormulario" type="button" aria-label="Novo lançamento">+</button>
+    <button class="nav-btn" type="button" data-view="metas">🎯<span>Metas</span></button>
+    <button class="nav-btn" type="button" data-view="ajustes">⚙️<span>Ajustes</span></button>
+  </nav>
+
   <div class="modal-overlay" id="modalOverlay" hidden>
     <div class="modal-sheet" role="dialog" aria-modal="true">
       <div class="modal-handle"></div>
