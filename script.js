@@ -75,16 +75,9 @@ function slugificar(texto) {
   return texto.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || gerarId();
 }
 
-function preencherSelectCategorias() {
-  const select = document.getElementById("categoria");
-  const valorAtual = select.value;
-  const categorias = todasCategorias();
-  select.innerHTML = Object.entries(categorias).map(([chave, nome]) => `<option value="${chave}">${seguro(nome)}</option>`).join("");
-  if (valorAtual && categorias[valorAtual]) select.value = valorAtual;
-}
-
 function renderizarCategoriasAjustes() {
   const el = document.getElementById("categoriasLista");
+  if (!el) return;
   const chaves = Object.keys(categoriasExtras);
   el.innerHTML = chaves.length
     ? chaves.map(chave => `<span class="categoria-chip">${categoriasExtras[chave].icone || "📌"} ${seguro(categoriasExtras[chave].nome)}<button type="button" onclick="removerCategoria('${chave}')" aria-label="Remover categoria">×</button></span>`).join("")
@@ -96,7 +89,6 @@ function adicionarCategoria(nome, icone) {
   while (todasCategorias()[chave]) chave = `${chave}-2`;
   categoriasExtras[chave] = { nome: nome.trim(), icone: icone || "📌" };
   salvar();
-  preencherSelectCategorias();
   renderizarCategoriasAjustes();
   fecharModal();
 }
@@ -105,7 +97,6 @@ function removerCategoria(chave) {
   if (!confirm("Remover esta categoria? Lançamentos existentes continuam salvos, só o nome deixa de aparecer na lista.")) return;
   delete categoriasExtras[chave];
   salvar();
-  preencherSelectCategorias();
   renderizarCategoriasAjustes();
 }
 
@@ -386,6 +377,44 @@ function mostrarErroForm(elemento, mensagem) {
   elemento.hidden = false;
 }
 
+function abrirNovoLancamentoModal() {
+  tipoFormulario = "receita";
+  recorrenciaFormulario = "nao";
+  const opcoesCategoria = Object.entries(todasCategorias()).map(([chave, nome]) => `<option value="${chave}">${seguro(nome)}</option>`).join("");
+  abrirModal("Novo lançamento", `
+    <div class="tipo-tabs" id="modalTipoTabs">
+      <button type="button" class="tipo-tab" data-tipo="despesa">Despesa</button>
+      <button type="button" class="tipo-tab active" data-tipo="receita">Receita</button>
+    </div>
+    <form id="formLancamento" class="form-group">
+      <input id="descricao" maxlength="80" placeholder="Descrição" autocomplete="off" required>
+      <input id="valor" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="Valor" required>
+      <select id="categoria" aria-label="Categoria do lançamento">${opcoesCategoria}</select>
+      <label class="campo-label">Data de vencimento</label>
+      <input id="dataVencimento" type="date" required>
+      <div class="recorrencia-tabs" id="modalRecorrenciaTabs">
+        <button type="button" class="recorrencia-btn active" data-recorrencia="nao">Não repetir</button>
+        <button type="button" class="recorrencia-btn" data-recorrencia="sempre">Sempre</button>
+        <button type="button" class="recorrencia-btn" data-recorrencia="parcelado">Parcelado</button>
+      </div>
+      <input id="numeroParcelas" type="number" min="2" max="60" step="1" inputmode="numeric" placeholder="Em quantas parcelas?" hidden>
+      <p class="form-erro" id="erroLancamento" hidden></p>
+      <button class="btn-primary" type="submit">Salvar</button>
+    </form>`);
+  document.getElementById("dataVencimento").value = hojeISO();
+  document.querySelectorAll("#modalTipoTabs .tipo-tab").forEach(botao => botao.addEventListener("click", () => {
+    tipoFormulario = botao.dataset.tipo;
+    document.querySelectorAll("#modalTipoTabs .tipo-tab").forEach(b => b.classList.toggle("active", b === botao));
+  }));
+  document.querySelectorAll("#modalRecorrenciaTabs .recorrencia-btn").forEach(botao => botao.addEventListener("click", () => {
+    recorrenciaFormulario = botao.dataset.recorrencia;
+    document.querySelectorAll("#modalRecorrenciaTabs .recorrencia-btn").forEach(b => b.classList.toggle("active", b === botao));
+    document.getElementById("numeroParcelas").hidden = recorrenciaFormulario !== "parcelado";
+  }));
+  document.getElementById("formLancamento").addEventListener("submit", adicionar);
+  document.getElementById("descricao").focus();
+}
+
 function adicionar(evento) {
   evento.preventDefault();
   const erroEl = document.getElementById("erroLancamento");
@@ -419,15 +448,8 @@ function adicionar(evento) {
     dados.push({ ...base, id: gerarId(), valor: numero, dataVencimento: dataInput.value, status: "pendente", recorrencia: "nao", recorrenciaId: null });
   }
 
-  descricao.value = "";
-  valorInput.value = "";
-  dataInput.value = hojeISO();
-  recorrenciaFormulario = "nao";
-  document.querySelectorAll(".recorrencia-btn").forEach(b => b.classList.toggle("active", b.dataset.recorrencia === "nao"));
-  document.getElementById("numeroParcelas").hidden = true;
-  document.getElementById("numeroParcelas").value = "";
+  fecharModal();
   atualizar();
-  descricao.focus();
 }
 
 function atualizarRelatorios(totais) {
@@ -573,8 +595,7 @@ function abrirAba(nome) {
   document.getElementById("relatoriosView").hidden = nome !== "relatorios";
   document.getElementById("metasView").hidden = nome !== "metas";
   document.getElementById("ajustesView").hidden = nome !== "ajustes";
-  document.getElementById("focoFormulario").hidden = nome !== "home";
-  document.querySelectorAll(".bottom-nav button").forEach(botao => botao.classList.toggle("active", botao.dataset.view === nome));
+  document.querySelectorAll(".bottom-nav .nav-btn").forEach(botao => botao.classList.toggle("active", botao.dataset.view === nome));
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -628,7 +649,6 @@ function importarBackup(evento) {
       categoriasExtras = conteudo.categoriasExtras || {};
       if (conteudo.tema) aplicarTema(conteudo.tema);
       itemSelecionadoId = null;
-      preencherSelectCategorias();
       atualizar();
       alert("Backup importado com sucesso.");
     } catch {
@@ -647,23 +667,11 @@ function resetarApp() {
   atualizar();
 }
 
-document.getElementById("formLancamento").addEventListener("submit", adicionar);
 document.getElementById("formMeta").addEventListener("submit", adicionarMeta);
-document.getElementById("focoFormulario").addEventListener("click", () => document.getElementById("descricao").focus());
+document.getElementById("focoFormulario").addEventListener("click", abrirNovoLancamentoModal);
 document.getElementById("limparTudo").addEventListener("click", () => { if (dados.length && confirm("Excluir todos os lançamentos?")) { dados = []; itemSelecionadoId = null; atualizar(); } });
-document.querySelectorAll(".bottom-nav button").forEach(botao => botao.addEventListener("click", () => abrirAba(botao.dataset.view)));
+document.querySelectorAll(".bottom-nav .nav-btn").forEach(botao => botao.addEventListener("click", () => abrirAba(botao.dataset.view)));
 document.getElementById("toggleTema").addEventListener("click", alternarTema);
-
-document.querySelectorAll(".tipo-tab").forEach(botao => botao.addEventListener("click", () => {
-  tipoFormulario = botao.dataset.tipo;
-  document.querySelectorAll(".tipo-tab").forEach(b => b.classList.toggle("active", b === botao));
-}));
-
-document.querySelectorAll(".recorrencia-btn").forEach(botao => botao.addEventListener("click", () => {
-  recorrenciaFormulario = botao.dataset.recorrencia;
-  document.querySelectorAll(".recorrencia-btn").forEach(b => b.classList.toggle("active", b === botao));
-  document.getElementById("numeroParcelas").hidden = recorrenciaFormulario !== "parcelado";
-}));
 
 document.getElementById("mesAnterior").addEventListener("click", () => { mesSelecionado.setMonth(mesSelecionado.getMonth() - 1); itemSelecionadoId = null; atualizar(); });
 document.getElementById("mesProximo").addEventListener("click", () => { mesSelecionado.setMonth(mesSelecionado.getMonth() + 1); itemSelecionadoId = null; atualizar(); });
@@ -722,7 +730,5 @@ window.addEventListener("resize", () => {
 
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("service-worker.js");
 
-document.getElementById("dataVencimento").value = hojeISO();
-preencherSelectCategorias();
 aplicarTema(localStorage.getItem("financePremiumTema") || "dark");
 atualizar();
