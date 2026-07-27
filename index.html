@@ -25,6 +25,13 @@
       <div class="saldo-trend" id="saldoTrend"></div>
     </section>
 
+    <section class="card alertas-card" id="alertasCard" hidden>
+      <h2 class="titulo-card">Alertas</h2>
+      <div id="alertasLista"></div>
+    </section>
+
+    <section class="cards-scroll" id="contasScroll" aria-label="Suas contas"></section>
+
     <section class="cards-scroll" aria-label="Resumo financeiro">
       <div class="mini-card receita"><span class="mini-icone">💰</span><span>Receitas</span><h3 id="receitas">R$ 0,00</h3></div>
       <div class="mini-card despesa"><span class="mini-icone">💸</span><span>Despesas</span><h3 id="despesas">R$ 0,00</h3></div>
@@ -55,8 +62,13 @@
         <button type="button" class="tab-transacao" data-aba="receitas">Receitas</button>
         <button type="button" class="tab-transacao" data-aba="despesas">Despesas</button>
       </div>
+      <div class="view-toggle" id="viewToggleTransacoes">
+        <button type="button" class="toggle-btn active" data-modo="lista">Lista</button>
+        <button type="button" class="toggle-btn" data-modo="calendario">Calendário</button>
+      </div>
       <div class="resumo-mes-card" id="resumoMesCard"></div>
       <div id="lancamentos"></div>
+      <div id="calendarioContainer" hidden></div>
       <div id="detalheLancamento"></div>
     </section>
   </main>
@@ -70,6 +82,7 @@
     </div>
     <section class="card"><h2 class="titulo-card">Resumo do período</h2><div id="resumoRelatorio" class="resumo-relatorio"></div></section>
     <section class="card"><h2 class="titulo-card">Despesas por categoria</h2><div id="categoriasRelatorio" class="lista-categorias"></div></section>
+    <section class="card"><h2 class="titulo-card">Planejamento — próximos 6 meses</h2><div id="planejamentoLista"></div></section>
   </main>
 
   <main class="app view" id="metasView" hidden>
@@ -86,6 +99,11 @@
         <span>Tema escuro</span>
         <button id="toggleTema" type="button" class="switch" aria-pressed="true"><i></i></button>
       </div>
+    </section>
+    <section class="card">
+      <h2 class="titulo-card">Contas</h2>
+      <div class="categorias-lista" id="contasLista"></div>
+      <button type="button" id="abrirNovaConta" class="btn-secundario">+ Nova conta</button>
     </section>
     <section class="card">
       <h2 class="titulo-card">Categorias</h2>
@@ -111,11 +129,14 @@
   </main>
 
   <nav class="bottom-nav" aria-label="Navegação principal">
-    <button class="nav-btn active" type="button" data-view="home">🏠<span>Home</span></button>
-    <button class="nav-btn" type="button" data-view="relatorios">📊<span>Relatórios</span></button>
+    <div class="nav-barra">
+      <button class="nav-btn active" type="button" data-view="home">🏠<span>Home</span></button>
+      <button class="nav-btn" type="button" data-view="relatorios">📊<span>Relatórios</span></button>
+      <span class="nav-espaco" aria-hidden="true"></span>
+      <button class="nav-btn" type="button" data-view="metas">🎯<span>Metas</span></button>
+      <button class="nav-btn" type="button" data-view="ajustes">⚙️<span>Ajustes</span></button>
+    </div>
     <button class="nav-fab" id="focoFormulario" type="button" aria-label="Novo lançamento">+</button>
-    <button class="nav-btn" type="button" data-view="metas">🎯<span>Metas</span></button>
-    <button class="nav-btn" type="button" data-view="ajustes">⚙️<span>Ajustes</span></button>
   </nav>
 
   <div class="modal-overlay" id="modalOverlay" hidden>
