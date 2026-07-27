@@ -1,25 +1,44 @@
 const STORAGE_KEY = "financePremium";
 const METAS_KEY = "financePremiumMetas";
 const CATEGORIAS_KEY = "financePremiumCategorias";
+const CONTAS_KEY = "financePremiumContas";
 const CATEGORIAS_BASE = { geral: "Geral", cartao: "Cartão", alimentacao: "Alimentação", moradia: "Moradia", transporte: "Transporte", lazer: "Lazer", saude: "Saúde", investimento: "Investimento" };
 const ICONES_BASE = { geral: "📌", cartao: "💳", alimentacao: "🍔", moradia: "🏠", transporte: "🚗", lazer: "🎮", saude: "🏥", investimento: "📈" };
-
-let dados = migrarDados(ler(STORAGE_KEY, []));
-let metas = ler(METAS_KEY, []);
-let categoriasExtras = ler(CATEGORIAS_KEY, {});
-let periodoRelatorio = "mes";
-let mesSelecionado = new Date(); mesSelecionado.setDate(1);
-let abaTransacao = "todos";
-let tipoFormulario = "receita";
-let recorrenciaFormulario = "nao";
-let itemSelecionadoId = null;
-let resizeTimeout = null;
 
 function gerarId() {
   return (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`);
 }
-
 function hojeISO() { return new Date().toISOString().slice(0, 10); }
+function ler(chave, padrao) { try { const valor = JSON.parse(localStorage.getItem(chave)); return valor && typeof valor === "object" ? valor : padrao; } catch { return padrao; } }
+
+let contas = ler(CONTAS_KEY, []);
+if (!Array.isArray(contas) || !contas.length) {
+  contas = [{ id: "conta-principal", nome: "Carteira", tipo: "carteira", icone: "👛", cor: "#6366f1", saldoInicial: 0 }];
+}
+let metas = ler(METAS_KEY, []);
+let categoriasExtras = ler(CATEGORIAS_KEY, {});
+
+function migrarDados(lista) {
+  return lista.map(item => ({
+    ...item,
+    dataVencimento: item.dataVencimento || (item.criadoEm ? item.criadoEm.slice(0, 10) : hojeISO()),
+    status: item.status || "concluido",
+    recorrencia: item.recorrencia || "nao",
+    recorrenciaId: item.recorrenciaId || null,
+    contaId: item.contaId || contas[0].id
+  }));
+}
+
+let dados = migrarDados(ler(STORAGE_KEY, []));
+let periodoRelatorio = "mes";
+let mesSelecionado = new Date(); mesSelecionado.setDate(1);
+let abaTransacao = "todos";
+let modoTransacao = "lista";
+let diaCalendarioSelecionado = null;
+let tipoFormulario = "receita";
+let recorrenciaFormulario = "nao";
+let itemSelecionadoId = null;
+let resizeTimeout = null;
 
 function formatarDataBR(iso) {
   if (!iso) return "";
@@ -41,21 +60,11 @@ function mesesEntre(dataA, dataB) {
   return (dataB.getFullYear() - dataA.getFullYear()) * 12 + (dataB.getMonth() - dataA.getMonth());
 }
 
-function migrarDados(lista) {
-  return lista.map(item => ({
-    ...item,
-    dataVencimento: item.dataVencimento || (item.criadoEm ? item.criadoEm.slice(0, 10) : hojeISO()),
-    status: item.status || "concluido",
-    recorrencia: item.recorrencia || "nao",
-    recorrenciaId: item.recorrenciaId || null
-  }));
-}
-
-function ler(chave, padrao) { try { const valor = JSON.parse(localStorage.getItem(chave)); return valor && typeof valor === "object" ? valor : padrao; } catch { return padrao; } }
 function salvar() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(dados));
   localStorage.setItem(METAS_KEY, JSON.stringify(metas));
   localStorage.setItem(CATEGORIAS_KEY, JSON.stringify(categoriasExtras));
+  localStorage.setItem(CONTAS_KEY, JSON.stringify(contas));
 }
 function moeda(valor) { return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(valor); }
 function seguro(valor) { const elemento = document.createElement("span"); elemento.textContent = valor; return elemento.innerHTML; }
@@ -70,11 +79,51 @@ function todosIcones() {
 }
 function nomeCategoria(chave) { return todasCategorias()[chave] || "Geral"; }
 function iconeCategoria(chave) { return todosIcones()[chave] || "📌"; }
+function nomeConta(id) { const c = contas.find(x => x.id === id); return c ? c.nome : "—"; }
 
 function slugificar(texto) {
   return texto.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || gerarId();
 }
 
+/* ===== CONTAS ===== */
+function saldoConta(contaId) {
+  const conta = contas.find(c => c.id === contaId);
+  const inicial = conta ? (conta.saldoInicial || 0) : 0;
+  const movimentado = dados.reduce((soma, item) => {
+    if (item.status !== "concluido" || item.contaId !== contaId) return soma;
+    return soma + (item.tipo === "receita" ? item.valor : -item.valor);
+  }, 0);
+  return inicial + movimentado;
+}
+function saldoTotalGeral() {
+  return contas.reduce((soma, conta) => soma + saldoConta(conta.id), 0);
+}
+function renderizarContasHome() {
+  const el = document.getElementById("contasScroll");
+  el.innerHTML = contas.map(conta => `<div class="mini-card conta-card"><span class="mini-icone">${conta.icone || "👛"}</span><span>${seguro(conta.nome)}</span><h3>${moeda(saldoConta(conta.id))}</h3></div>`).join("");
+}
+function renderizarContasAjustes() {
+  const el = document.getElementById("contasLista");
+  el.innerHTML = contas.map(conta => `<span class="categoria-chip">${conta.icone || "👛"} ${seguro(conta.nome)}<button type="button" onclick="removerConta('${conta.id}')" aria-label="Remover conta">×</button></span>`).join("");
+}
+function adicionarConta(nome, icone) {
+  contas.push({ id: gerarId(), nome: nome.trim(), tipo: "outra", icone: icone || "👛", cor: "#6366f1", saldoInicial: 0 });
+  salvar();
+  renderizarContasHome();
+  renderizarContasAjustes();
+  fecharModal();
+}
+function removerConta(id) {
+  if (contas.length <= 1) { alert("Você precisa manter pelo menos uma conta."); return; }
+  if (!confirm("Remover esta conta? Os lançamentos vinculados a ela continuam salvos.")) return;
+  contas = contas.filter(c => c.id !== id);
+  salvar();
+  renderizarContasHome();
+  renderizarContasAjustes();
+  atualizar();
+}
+
+/* ===== CATEGORIAS ===== */
 function renderizarCategoriasAjustes() {
   const el = document.getElementById("categoriasLista");
   if (!el) return;
@@ -83,7 +132,6 @@ function renderizarCategoriasAjustes() {
     ? chaves.map(chave => `<span class="categoria-chip">${categoriasExtras[chave].icone || "📌"} ${seguro(categoriasExtras[chave].nome)}<button type="button" onclick="removerCategoria('${chave}')" aria-label="Remover categoria">×</button></span>`).join("")
     : '<p class="vazio-mini">Nenhuma categoria personalizada ainda.</p>';
 }
-
 function adicionarCategoria(nome, icone) {
   let chave = slugificar(nome);
   while (todasCategorias()[chave]) chave = `${chave}-2`;
@@ -92,14 +140,14 @@ function adicionarCategoria(nome, icone) {
   renderizarCategoriasAjustes();
   fecharModal();
 }
-
 function removerCategoria(chave) {
-  if (!confirm("Remover esta categoria? Lançamentos existentes continuam salvos, só o nome deixa de aparecer na lista.")) return;
+  if (!confirm("Remover esta categoria? Lançamentos existentes continuam salvos.")) return;
   delete categoriasExtras[chave];
   salvar();
   renderizarCategoriasAjustes();
 }
 
+/* ===== CÁLCULO DE TOTAIS ===== */
 function estaNoMes(item, offsetMeses = 0) {
   const dataISO = item.dataVencimento || item.criadoEm.slice(0, 10);
   const data = new Date(dataISO + "T00:00:00");
@@ -107,13 +155,11 @@ function estaNoMes(item, offsetMeses = 0) {
   referencia.setMonth(referencia.getMonth() + offsetMeses);
   return data.getMonth() === referencia.getMonth() && data.getFullYear() === referencia.getFullYear();
 }
-
 function mesmaCompetencia(item, mesData) {
   const dataISO = item.dataVencimento || item.criadoEm.slice(0, 10);
   const dataRef = new Date(dataISO + "T00:00:00");
   return dataRef.getMonth() === mesData.getMonth() && dataRef.getFullYear() === mesData.getFullYear();
 }
-
 function calcularTotais(filtro) {
   return dados.reduce((resultado, item) => {
     if (item.status !== "concluido") return resultado;
@@ -124,35 +170,24 @@ function calcularTotais(filtro) {
     return resultado;
   }, { receita: 0, despesa: 0, cartao: 0, categorias: {} });
 }
-
-function totaisGerais() {
-  return dados.reduce((resultado, item) => {
-    if (item.status !== "concluido") return resultado;
-    resultado[item.tipo] += item.valor;
-    return resultado;
-  }, { receita: 0, despesa: 0 });
-}
-
 function totaisPorMes(offsetMeses) { return calcularTotais(item => estaNoMes(item, offsetMeses)); }
 function totaisTudo() { return calcularTotais(null); }
-
 function obterTotaisPeriodo(periodo) {
   if (periodo === "mes") return totaisPorMes(0);
   if (periodo === "anterior") return totaisPorMes(-1);
   return totaisTudo();
 }
 
+/* ===== DASHBOARD ===== */
 function atualizarSaudacao() {
   const hora = new Date().getHours();
   const saudacao = hora < 12 ? "Bom dia" : hora < 18 ? "Boa tarde" : "Boa noite";
   document.getElementById("saudacaoHeader").textContent = `${saudacao}, Guilherme 👋`;
 }
-
 function atualizarData() {
   const texto = new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
   document.getElementById("dataAtual").textContent = texto;
 }
-
 function atualizarTendencia(atual, anterior) {
   const el = document.getElementById("saldoTrend");
   if (anterior === 0 && atual === 0) { el.innerHTML = ""; return; }
@@ -162,7 +197,6 @@ function atualizarTendencia(atual, anterior) {
   const classe = positivo ? "trend-alta" : "trend-baixa";
   el.innerHTML = `<span class="${classe}">${seta} ${Math.abs(variacao).toFixed(0)}%</span><small>vs mês passado</small>`;
 }
-
 function atualizarDestaque(categorias, totalDespesas) {
   const card = document.getElementById("destaqueCard");
   const entradas = Object.entries(categorias);
@@ -174,6 +208,82 @@ function atualizarDestaque(categorias, totalDespesas) {
   card.hidden = false;
 }
 
+/* ===== ALERTAS INTELIGENTES ===== */
+function calcularAlertas() {
+  const alertas = [];
+  const mes = totaisPorMes(0);
+  const mesPassado = totaisPorMes(-1);
+  if (mes.receita > 0) {
+    const percentualGasto = (mes.despesa / mes.receita) * 100;
+    if (percentualGasto >= 100) alertas.push({ tipo: "perigo", texto: `Suas despesas já ultrapassaram sua receita do mês (${percentualGasto.toFixed(0)}%).` });
+    else if (percentualGasto >= 80) alertas.push({ tipo: "alerta", texto: `Você já usou ${percentualGasto.toFixed(0)}% da sua receita do mês em despesas.` });
+  }
+  if (mesPassado.despesa > 0 && mes.despesa > mesPassado.despesa) {
+    const variacao = ((mes.despesa - mesPassado.despesa) / mesPassado.despesa) * 100;
+    if (variacao >= 20) alertas.push({ tipo: "alerta", texto: `Suas despesas subiram ${variacao.toFixed(0)}% em relação ao mês passado.` });
+  }
+  Object.keys(mes.categorias).forEach(chave => {
+    const atual = mes.categorias[chave];
+    const anterior = mesPassado.categorias[chave] || 0;
+    if (anterior > 0 && atual > anterior * 1.3) {
+      alertas.push({ tipo: "alerta", texto: `Sua categoria ${nomeCategoria(chave)} aumentou bastante em relação ao mês passado.` });
+    }
+  });
+  const hoje = new Date(); hoje.setDate(1);
+  const previsaoAtual = totaisMesTransacoes(hoje, "todos");
+  if (previsaoAtual.total < 0) alertas.push({ tipo: "perigo", texto: `Seu saldo previsto para este mês pode ficar negativo (${moeda(previsaoAtual.total)}).` });
+  metas.forEach(meta => {
+    if (meta.valorAcumulado >= meta.alvo) alertas.push({ tipo: "sucesso", texto: `Parabéns! Você atingiu a meta "${meta.nome}".` });
+  });
+  return alertas.slice(0, 4);
+}
+function renderizarAlertas() {
+  const card = document.getElementById("alertasCard");
+  const lista = document.getElementById("alertasLista");
+  const alertas = calcularAlertas();
+  if (!alertas.length) { card.hidden = true; return; }
+  lista.innerHTML = alertas.map(a => `<div class="alerta-item alerta-${a.tipo}">${a.texto}</div>`).join("");
+  card.hidden = false;
+}
+
+/* ===== PLANEJAMENTO (PRÓXIMOS MESES) ===== */
+function calcularPlanejamento(mesesAFrente) {
+  const hoje = new Date(); hoje.setDate(1);
+  const ultimosPorGrupo = new Map();
+  dados.forEach(item => {
+    if (item.recorrencia === "sempre" && item.recorrenciaId) {
+      const atual = ultimosPorGrupo.get(item.recorrenciaId);
+      if (!atual || item.dataVencimento > atual.dataVencimento) ultimosPorGrupo.set(item.recorrenciaId, item);
+    }
+  });
+  const resultado = [];
+  for (let i = 1; i <= mesesAFrente; i++) {
+    const mesAlvo = new Date(hoje.getFullYear(), hoje.getMonth() + i, 1);
+    const itensExistentes = dados.filter(item => mesmaCompetencia(item, mesAlvo));
+    let receitaProjetada = itensExistentes.filter(x => x.tipo === "receita").reduce((s, x) => s + x.valor, 0);
+    let despesaProjetada = itensExistentes.filter(x => x.tipo === "despesa").reduce((s, x) => s + x.valor, 0);
+    ultimosPorGrupo.forEach(ultimo => {
+      const jaTem = itensExistentes.some(x => x.recorrenciaId === ultimo.recorrenciaId);
+      if (!jaTem) {
+        if (ultimo.tipo === "receita") receitaProjetada += ultimo.valor; else despesaProjetada += ultimo.valor;
+      }
+    });
+    resultado.push({ mes: mesAlvo, saldo: receitaProjetada - despesaProjetada });
+  }
+  return resultado;
+}
+function renderizarPlanejamento() {
+  const lista = document.getElementById("planejamentoLista");
+  if (!lista) return;
+  const meses = calcularPlanejamento(6);
+  lista.innerHTML = meses.map(m => {
+    const nomeMes = m.mes.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+    const classe = m.saldo >= 0 ? "valor-receita" : "valor-despesa";
+    return `<div class="planejamento-linha"><span>${nomeMes}</span><strong class="${classe}">${moeda(m.saldo)}</strong></div>`;
+  }).join("");
+}
+
+/* ===== RECORRÊNCIAS ===== */
 function processarRecorrencias() {
   const ultimosPorGrupo = new Map();
   dados.forEach(item => {
@@ -191,15 +301,14 @@ function processarRecorrencias() {
   });
 }
 
+/* ===== TRANSAÇÕES DO MÊS ===== */
 function atualizarLabelMes() {
   const texto = mesSelecionado.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
   document.getElementById("mesAtualLabel").textContent = texto;
 }
-
 function totaisMesTransacoes(mesData, aba) {
   const itensDoMes = dados.filter(item => mesmaCompetencia(item, mesData) && (aba === "todos" || (aba === "receitas" && item.tipo === "receita") || (aba === "despesas" && item.tipo === "despesa")));
   const soma = (tipoFiltro, statusFiltro) => itensDoMes.filter(i => (!tipoFiltro || i.tipo === tipoFiltro) && i.status === statusFiltro).reduce((s, i) => s + i.valor, 0);
-
   if (aba === "receitas") {
     const v1 = soma("receita", "concluido"), v2 = soma("receita", "pendente");
     return { itensDoMes, label: "Receitas no mês", label1: "Recebido", label2: "A Receber", valor1: v1, valor2: v2, total: v1 + v2 };
@@ -212,7 +321,6 @@ function totaisMesTransacoes(mesData, aba) {
   const pendente = soma("receita", "pendente") - soma("despesa", "pendente");
   return { itensDoMes, label: "Saldo previsto no mês", label1: "Confirmado", label2: "Pendente", valor1: confirmado, valor2: pendente, total: confirmado + pendente };
 }
-
 function renderizarResumoMes() {
   const r = totaisMesTransacoes(mesSelecionado, abaTransacao);
   document.getElementById("resumoMesCard").innerHTML = `
@@ -224,12 +332,10 @@ function renderizarResumoMes() {
     </div>`;
   return r.itensDoMes;
 }
-
-function renderizarListaTransacoes(itens) {
-  const lista = document.getElementById("lancamentos");
-  if (!itens.length) { lista.innerHTML = '<p class="vazio">Nenhum lançamento neste período.</p>'; return; }
+function renderizarListaEm(container, itens) {
+  if (!itens.length) { container.innerHTML = '<p class="vazio">Nenhum lançamento neste período.</p>'; return; }
   const ordenados = itens.slice().sort((a, b) => (a.dataVencimento || "").localeCompare(b.dataVencimento || ""));
-  lista.innerHTML = ordenados.map(item => {
+  container.innerHTML = ordenados.map(item => {
     const vencida = item.status === "pendente" && item.dataVencimento < hojeISO();
     const statusTexto = item.status === "concluido" ? "Confirmado" : (vencida ? "Vencido" : "Pendente");
     const statusClasse = item.status === "concluido" ? "status-ok" : (vencida ? "status-vencido" : "status-pendente");
@@ -240,13 +346,61 @@ function renderizarListaTransacoes(itens) {
       <div class="item-icone">${iconeCategoria(item.categoria)}</div>
       <div class="item-info">
         <strong>${seguro(item.descricao)}</strong>
-        <div class="item-meta"><small>${formatarDataBR(item.dataVencimento)}</small><span class="status-pill ${statusClasse}">${statusTexto}</span>${tagRecorrente}</div>
+        <div class="item-meta"><small>${formatarDataBR(item.dataVencimento)} · ${seguro(nomeConta(item.contaId))}</small><span class="status-pill ${statusClasse}">${statusTexto}</span>${tagRecorrente}</div>
       </div>
       <div class="item-valor"><small class="${classe}">${sinal} ${moeda(item.valor)}</small></div>
     </article>`;
   }).join("");
 }
+function renderizarListaTransacoes(itens) {
+  renderizarListaEm(document.getElementById("lancamentos"), itens);
+}
 
+/* ===== CALENDÁRIO ===== */
+function renderizarCalendario() {
+  const container = document.getElementById("calendarioContainer");
+  const ano = mesSelecionado.getFullYear();
+  const mes = mesSelecionado.getMonth();
+  const primeiroDiaSemana = new Date(ano, mes, 1).getDay();
+  const totalDias = new Date(ano, mes + 1, 0).getDate();
+  const itensDoMes = dados.filter(item => mesmaCompetencia(item, mesSelecionado) && (abaTransacao === "todos" || (abaTransacao === "receitas" && item.tipo === "receita") || (abaTransacao === "despesas" && item.tipo === "despesa")));
+  const porDia = {};
+  itensDoMes.forEach(item => {
+    const dia = Number(item.dataVencimento.slice(8, 10));
+    if (!porDia[dia]) porDia[dia] = [];
+    porDia[dia].push(item);
+  });
+  let celulas = "";
+  for (let i = 0; i < primeiroDiaSemana; i++) celulas += `<span class="dia-vazio"></span>`;
+  const hojeReal = new Date();
+  for (let dia = 1; dia <= totalDias; dia++) {
+    const itensDia = porDia[dia] || [];
+    const temVencido = itensDia.some(x => x.status === "pendente" && x.dataVencimento < hojeISO());
+    const temPendente = itensDia.some(x => x.status === "pendente" && x.dataVencimento >= hojeISO());
+    const temConcluido = itensDia.some(x => x.status === "concluido");
+    const pontos = itensDia.length ? `<span class="dia-pontos">${temVencido ? '<i class="ponto ponto-vencido"></i>' : ""}${temPendente ? '<i class="ponto ponto-pendente"></i>' : ""}${temConcluido ? '<i class="ponto ponto-ok"></i>' : ""}</span>` : "";
+    const hojeClasse = (hojeReal.getDate() === dia && hojeReal.getMonth() === mes && hojeReal.getFullYear() === ano) ? "dia-hoje" : "";
+    const selClasse = diaCalendarioSelecionado === dia ? "dia-selecionado" : "";
+    celulas += `<button type="button" class="dia-cel ${hojeClasse} ${selClasse}" onclick="selecionarDiaCalendario(${dia})">${dia}${pontos}</button>`;
+  }
+  container.innerHTML = `<div class="calendario-grid">${["D", "S", "T", "Q", "Q", "S", "S"].map(d => `<span class="dia-semana">${d}</span>`).join("")}${celulas}</div><div id="calendarioDetalheDia"></div>`;
+  if (diaCalendarioSelecionado) renderizarDiaCalendario();
+}
+function selecionarDiaCalendario(dia) {
+  diaCalendarioSelecionado = diaCalendarioSelecionado === dia ? null : dia;
+  renderizarCalendario();
+}
+function renderizarDiaCalendario() {
+  const el = document.getElementById("calendarioDetalheDia");
+  if (!el) return;
+  const ano = mesSelecionado.getFullYear();
+  const mes = mesSelecionado.getMonth();
+  const dataAlvo = `${ano}-${String(mes + 1).padStart(2, "0")}-${String(diaCalendarioSelecionado).padStart(2, "0")}`;
+  const itensDia = dados.filter(item => item.dataVencimento === dataAlvo && (abaTransacao === "todos" || (abaTransacao === "receitas" && item.tipo === "receita") || (abaTransacao === "despesas" && item.tipo === "despesa")));
+  renderizarListaEm(el, itensDia);
+}
+
+/* ===== DETALHE DO LANÇAMENTO ===== */
 function renderizarDetalhe() {
   const container = document.getElementById("detalheLancamento");
   const item = dados.find(i => i.id === itemSelecionadoId);
@@ -270,11 +424,11 @@ function renderizarDetalhe() {
     <div class="detalhe-linha"><span>Valor</span><strong>${moeda(item.valor)}</strong></div>
     <div class="detalhe-linha"><span>Data de vencimento</span><strong>${formatarDataBR(item.dataVencimento)}</strong></div>
     <div class="detalhe-linha"><span>Categoria</span><strong>${nomeCategoria(item.categoria)}</strong></div>
+    <div class="detalhe-linha"><span>Conta</span><strong>${seguro(nomeConta(item.contaId))}</strong></div>
     ${vencida ? `<p class="detalhe-alerta">Atenção: este lançamento está vencido.</p>` : ""}
     <button type="button" class="btn-primary" onclick="alternarStatus('${item.id}')">${acaoLabel}</button>
   </div>`;
 }
-
 function selecionarItem(id) {
   itemSelecionadoId = itemSelecionadoId === id ? null : id;
   atualizar();
@@ -283,23 +437,23 @@ function selecionarItem(id) {
     if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
   }
 }
-
 function alternarStatus(id) {
   const item = dados.find(i => i.id === id);
   if (!item) return;
   item.status = item.status === "concluido" ? "pendente" : "concluido";
   atualizar();
 }
-
 function editarLancamento(id) {
   const item = dados.find(i => i.id === id);
   if (!item) return;
-  const opcoes = Object.entries(todasCategorias()).map(([chave, nome]) => `<option value="${chave}" ${item.categoria === chave ? "selected" : ""}>${seguro(nome)}</option>`).join("");
+  const opcoesCategoria = Object.entries(todasCategorias()).map(([chave, nome]) => `<option value="${chave}" ${item.categoria === chave ? "selected" : ""}>${seguro(nome)}</option>`).join("");
+  const opcoesConta = contas.map(c => `<option value="${c.id}" ${item.contaId === c.id ? "selected" : ""}>${c.icone || "👛"} ${seguro(c.nome)}</option>`).join("");
   abrirModal("Editar lançamento", `
     <form id="formEditarLancamento" class="form-group">
       <input id="editDescricao" maxlength="80" value="${seguro(item.descricao)}" required>
       <input id="editValor" type="number" min="0.01" step="0.01" inputmode="decimal" value="${item.valor}" required>
-      <select id="editCategoria">${opcoes}</select>
+      <select id="editCategoria">${opcoesCategoria}</select>
+      <select id="editConta">${opcoesConta}</select>
       <label class="campo-label">Data de vencimento</label>
       <input id="editData" type="date" value="${item.dataVencimento}" required>
       <p class="form-erro" id="erroEditarLancamento" hidden></p>
@@ -321,11 +475,11 @@ function editarLancamento(id) {
     item.valor = novoValor;
     item.dataVencimento = novaData;
     item.categoria = document.getElementById("editCategoria").value;
+    item.contaId = document.getElementById("editConta").value;
     fecharModal();
     atualizar();
   });
 }
-
 function removerLancamentoDetalhe(id) {
   if (!confirm("Excluir este lançamento?")) return;
   dados = dados.filter(item => item.id !== id);
@@ -333,15 +487,16 @@ function removerLancamentoDetalhe(id) {
   atualizar();
 }
 
+/* ===== LOOP PRINCIPAL ===== */
 function renderRelatorio() {
   const totais = obterTotaisPeriodo(periodoRelatorio);
   atualizarRelatorios(totais);
+  renderizarPlanejamento();
 }
 
 function atualizar() {
   processarRecorrencias();
-  const geral = totaisGerais();
-  const saldoDisponivel = geral.receita - geral.despesa;
+  const saldoDisponivel = saldoTotalGeral();
   const mes = totaisPorMes(0);
   const mesPassado = totaisPorMes(-1);
   const economiaMes = mes.receita - mes.despesa;
@@ -358,10 +513,15 @@ function atualizar() {
 
   atualizarTendencia(economiaMes, economiaPassada);
   atualizarDestaque(mes.categorias, mes.despesa);
+  renderizarAlertas();
+  renderizarContasHome();
 
   atualizarLabelMes();
   const itensDoMesTransacoes = renderizarResumoMes();
-  renderizarListaTransacoes(itensDoMesTransacoes);
+  document.getElementById("lancamentos").hidden = modoTransacao !== "lista";
+  document.getElementById("calendarioContainer").hidden = modoTransacao !== "calendario";
+  if (modoTransacao === "lista") renderizarListaTransacoes(itensDoMesTransacoes);
+  else renderizarCalendario();
   renderizarDetalhe();
 
   desenharGrafico(mes.receita, mes.despesa);
@@ -369,6 +529,7 @@ function atualizar() {
   renderRelatorio();
   atualizarMetas();
   renderizarCategoriasAjustes();
+  renderizarContasAjustes();
   salvar();
 }
 
@@ -377,10 +538,12 @@ function mostrarErroForm(elemento, mensagem) {
   elemento.hidden = false;
 }
 
+/* ===== NOVO LANÇAMENTO (MODAL) ===== */
 function abrirNovoLancamentoModal() {
   tipoFormulario = "receita";
   recorrenciaFormulario = "nao";
   const opcoesCategoria = Object.entries(todasCategorias()).map(([chave, nome]) => `<option value="${chave}">${seguro(nome)}</option>`).join("");
+  const opcoesConta = contas.map(c => `<option value="${c.id}">${c.icone || "👛"} ${seguro(c.nome)}</option>`).join("");
   abrirModal("Novo lançamento", `
     <div class="tipo-tabs" id="modalTipoTabs">
       <button type="button" class="tipo-tab" data-tipo="despesa">Despesa</button>
@@ -390,6 +553,7 @@ function abrirNovoLancamentoModal() {
       <input id="descricao" maxlength="80" placeholder="Descrição" autocomplete="off" required>
       <input id="valor" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="Valor" required>
       <select id="categoria" aria-label="Categoria do lançamento">${opcoesCategoria}</select>
+      <select id="conta" aria-label="Conta">${opcoesConta}</select>
       <label class="campo-label">Data de vencimento</label>
       <input id="dataVencimento" type="date" required>
       <div class="recorrencia-tabs" id="modalRecorrenciaTabs">
@@ -422,6 +586,7 @@ function adicionar(evento) {
   const descricao = document.getElementById("descricao");
   const valorInput = document.getElementById("valor");
   const categoria = document.getElementById("categoria").value;
+  const contaId = document.getElementById("conta").value;
   const dataInput = document.getElementById("dataVencimento");
   const numero = Number(valorInput.value);
 
@@ -429,7 +594,7 @@ function adicionar(evento) {
   if (!Number.isFinite(numero) || numero <= 0) return mostrarErroForm(erroEl, "Informe um valor válido, maior que zero.");
   if (!dataInput.value) return mostrarErroForm(erroEl, "Escolha a data de vencimento.");
 
-  const base = { descricao: descricao.value.trim(), tipo: tipoFormulario, categoria, criadoEm: new Date().toISOString() };
+  const base = { descricao: descricao.value.trim(), tipo: tipoFormulario, categoria, contaId, criadoEm: new Date().toISOString() };
 
   if (recorrenciaFormulario === "parcelado") {
     const parcelas = Number(document.getElementById("numeroParcelas").value);
@@ -452,6 +617,7 @@ function adicionar(evento) {
   atualizar();
 }
 
+/* ===== RELATÓRIOS ===== */
 function atualizarRelatorios(totais) {
   const saldo = totais.receita - totais.despesa;
   document.getElementById("resumoRelatorio").innerHTML = `<div><span>Receitas</span><strong class="valor-receita">${moeda(totais.receita)}</strong></div><div><span>Despesas</span><strong class="valor-despesa">${moeda(totais.despesa)}</strong></div><div><span>Saldo</span><strong>${moeda(saldo)}</strong></div><div><span>Cartão</span><strong>${moeda(totais.cartao)}</strong></div>`;
@@ -459,6 +625,7 @@ function atualizarRelatorios(totais) {
   document.getElementById("categoriasRelatorio").innerHTML = categorias.length ? categorias.map(([chave, valor]) => `<div class="categoria-linha"><span>${nomeCategoria(chave)}</span><strong>${moeda(valor)}</strong><div class="barra"><i style="width:${totais.despesa ? valor / totais.despesa * 100 : 0}%"></i></div></div>`).join("") : '<p class="vazio">Adicione despesas para ver as categorias.</p>';
 }
 
+/* ===== METAS ===== */
 function adicionarMeta(evento) {
   evento.preventDefault();
   const erroEl = document.getElementById("erroMeta");
@@ -473,7 +640,6 @@ function adicionarMeta(evento) {
   valor.value = "";
   atualizar();
 }
-
 function atualizarMetas() {
   const lista = document.getElementById("listaMetas");
   lista.innerHTML = metas.length ? metas.map((meta) => {
@@ -495,7 +661,6 @@ function atualizarMetas() {
     </article>`;
   }).join("") : '<p class="vazio">Crie uma meta para acompanhar sua economia.</p>';
 }
-
 function aportarMeta(id) {
   const meta = metas.find(item => item.id === id);
   if (!meta) return;
@@ -519,7 +684,6 @@ function aportarMeta(id) {
     atualizar();
   });
 }
-
 function editarMeta(id) {
   const meta = metas.find(item => item.id === id);
   if (!meta) return;
@@ -546,12 +710,12 @@ function editarMeta(id) {
     atualizar();
   });
 }
-
 function removerMeta(id) {
   metas = metas.filter(item => item.id !== id);
   atualizar();
 }
 
+/* ===== GRÁFICO ===== */
 function desenharGrafico(receitas, despesas) {
   const canvas = document.getElementById("graficoFinanceiro");
   const vazio = document.getElementById("graficoVazio");
@@ -579,7 +743,6 @@ function desenharGrafico(receitas, despesas) {
   contexto.arc(centro, centro, raio, inicio + angulo, inicio + Math.PI * 2);
   contexto.stroke();
 }
-
 function renderizarLegendaGrafico(receitas, despesas) {
   const el = document.getElementById("graficoLegenda");
   const total = receitas + despesas;
@@ -590,6 +753,7 @@ function renderizarLegendaGrafico(receitas, despesas) {
     <div class="legenda-item"><span class="legenda-dot" style="background:var(--red)"></span><span class="legenda-rotulo">Despesas</span><strong>${moeda(despesas)}</strong><small>${pctDespesa}%</small></div>`;
 }
 
+/* ===== NAVEGAÇÃO E TEMA ===== */
 function abrirAba(nome) {
   document.getElementById("homeView").hidden = nome !== "home";
   document.getElementById("relatoriosView").hidden = nome !== "relatorios";
@@ -598,18 +762,17 @@ function abrirAba(nome) {
   document.querySelectorAll(".bottom-nav .nav-btn").forEach(botao => botao.classList.toggle("active", botao.dataset.view === nome));
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
-
 function aplicarTema(tema) {
   document.documentElement.setAttribute("data-theme", tema);
   document.getElementById("toggleTema").setAttribute("aria-pressed", tema === "dark");
   localStorage.setItem("financePremiumTema", tema);
 }
-
 function alternarTema() {
   const atual = localStorage.getItem("financePremiumTema") || "dark";
   aplicarTema(atual === "dark" ? "light" : "dark");
 }
 
+/* ===== MODAL GENÉRICO ===== */
 function abrirModal(titulo, corpoHTML) {
   document.getElementById("modalTitulo").textContent = titulo;
   document.getElementById("modalCorpo").innerHTML = corpoHTML;
@@ -617,15 +780,15 @@ function abrirModal(titulo, corpoHTML) {
   overlay.hidden = false;
   requestAnimationFrame(() => overlay.classList.add("modal-aberto"));
 }
-
 function fecharModal() {
   const overlay = document.getElementById("modalOverlay");
   overlay.classList.remove("modal-aberto");
   setTimeout(() => { overlay.hidden = true; document.getElementById("modalCorpo").innerHTML = ""; }, 220);
 }
 
+/* ===== BACKUP ===== */
 function exportarBackup() {
-  const payload = JSON.stringify({ dados, metas, categoriasExtras, tema: localStorage.getItem("financePremiumTema") || "dark", exportadoEm: new Date().toISOString() }, null, 2);
+  const payload = JSON.stringify({ dados, metas, categoriasExtras, contas, tema: localStorage.getItem("financePremiumTema") || "dark", exportadoEm: new Date().toISOString() }, null, 2);
   const blob = new Blob([payload], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -634,7 +797,6 @@ function exportarBackup() {
   link.click();
   URL.revokeObjectURL(url);
 }
-
 function importarBackup(evento) {
   const arquivo = evento.target.files[0];
   if (!arquivo) return;
@@ -644,6 +806,7 @@ function importarBackup(evento) {
       const conteudo = JSON.parse(leitor.result);
       if (!Array.isArray(conteudo.dados) || !Array.isArray(conteudo.metas)) throw new Error("formato inválido");
       if (!confirm("Importar este backup vai substituir todos os dados atuais. Continuar?")) return;
+      if (Array.isArray(conteudo.contas) && conteudo.contas.length) contas = conteudo.contas;
       dados = migrarDados(conteudo.dados);
       metas = conteudo.metas;
       categoriasExtras = conteudo.categoriasExtras || {};
@@ -658,7 +821,6 @@ function importarBackup(evento) {
   leitor.readAsText(arquivo);
   evento.target.value = "";
 }
-
 function resetarApp() {
   if (!confirm("Isso vai apagar TODOS os lançamentos e metas permanentemente. Deseja continuar?")) return;
   dados = [];
@@ -667,19 +829,26 @@ function resetarApp() {
   atualizar();
 }
 
+/* ===== EVENT LISTENERS ===== */
 document.getElementById("formMeta").addEventListener("submit", adicionarMeta);
 document.getElementById("focoFormulario").addEventListener("click", abrirNovoLancamentoModal);
 document.getElementById("limparTudo").addEventListener("click", () => { if (dados.length && confirm("Excluir todos os lançamentos?")) { dados = []; itemSelecionadoId = null; atualizar(); } });
 document.querySelectorAll(".bottom-nav .nav-btn").forEach(botao => botao.addEventListener("click", () => abrirAba(botao.dataset.view)));
 document.getElementById("toggleTema").addEventListener("click", alternarTema);
 
-document.getElementById("mesAnterior").addEventListener("click", () => { mesSelecionado.setMonth(mesSelecionado.getMonth() - 1); itemSelecionadoId = null; atualizar(); });
-document.getElementById("mesProximo").addEventListener("click", () => { mesSelecionado.setMonth(mesSelecionado.getMonth() + 1); itemSelecionadoId = null; atualizar(); });
+document.getElementById("mesAnterior").addEventListener("click", () => { mesSelecionado.setMonth(mesSelecionado.getMonth() - 1); itemSelecionadoId = null; diaCalendarioSelecionado = null; atualizar(); });
+document.getElementById("mesProximo").addEventListener("click", () => { mesSelecionado.setMonth(mesSelecionado.getMonth() + 1); itemSelecionadoId = null; diaCalendarioSelecionado = null; atualizar(); });
 
 document.querySelectorAll(".tab-transacao").forEach(botao => botao.addEventListener("click", () => {
   abaTransacao = botao.dataset.aba;
   document.querySelectorAll(".tab-transacao").forEach(b => b.classList.toggle("active", b === botao));
   itemSelecionadoId = null;
+  atualizar();
+}));
+
+document.querySelectorAll("#viewToggleTransacoes .toggle-btn").forEach(botao => botao.addEventListener("click", () => {
+  modoTransacao = botao.dataset.modo;
+  document.querySelectorAll("#viewToggleTransacoes .toggle-btn").forEach(b => b.classList.toggle("active", b === botao));
   atualizar();
 }));
 
@@ -713,6 +882,28 @@ document.getElementById("abrirNovaCategoria").addEventListener("click", () => {
     const icone = document.getElementById("novaCategoriaIcone").value.trim();
     if (!nome) return mostrarErroForm(erroEl, "Dê um nome para a categoria.");
     adicionarCategoria(nome, icone);
+  });
+});
+
+document.getElementById("abrirNovaConta").addEventListener("click", () => {
+  abrirModal("Nova conta", `
+    <form id="formNovaConta" class="form-group">
+      <input id="novaContaNome" maxlength="30" placeholder="Nome da conta (ex.: Nubank)" required>
+      <input id="novaContaIcone" maxlength="4" placeholder="Emoji (opcional)">
+      <p class="form-erro" id="erroNovaConta" hidden></p>
+      <div class="modal-acoes">
+        <button type="button" class="btn-secundario" onclick="fecharModal()">Cancelar</button>
+        <button type="submit" class="btn-primary">Criar</button>
+      </div>
+    </form>`);
+  document.getElementById("novaContaNome").focus();
+  document.getElementById("formNovaConta").addEventListener("submit", (evento) => {
+    evento.preventDefault();
+    const erroEl = document.getElementById("erroNovaConta");
+    const nome = document.getElementById("novaContaNome").value.trim();
+    const icone = document.getElementById("novaContaIcone").value.trim();
+    if (!nome) return mostrarErroForm(erroEl, "Dê um nome para a conta.");
+    adicionarConta(nome, icone);
   });
 });
 
