@@ -17,6 +17,9 @@ if (!Array.isArray(contas) || !contas.length) {
 }
 let metas = ler(METAS_KEY, []);
 let categoriasExtras = ler(CATEGORIAS_KEY, {});
+const PERFIL_KEY = "financePremiumPerfil";
+let perfilBruto = ler(PERFIL_KEY, null);
+let perfil = (perfilBruto && perfilBruto.nome) ? perfilBruto : { nome: "Você" };
 
 function migrarDados(lista) {
   return lista.map(item => ({
@@ -104,14 +107,40 @@ function renderizarContasHome() {
 }
 function renderizarContasAjustes() {
   const el = document.getElementById("contasLista");
-  el.innerHTML = contas.map(conta => `<span class="categoria-chip">${conta.icone || "👛"} ${seguro(conta.nome)}<button type="button" onclick="removerConta('${conta.id}')" aria-label="Remover conta">×</button></span>`).join("");
+  el.innerHTML = contas.map(conta => `<span class="categoria-chip conta-chip" onclick="editarConta('${conta.id}')">${conta.icone || "👛"} ${seguro(conta.nome)}<button type="button" onclick="event.stopPropagation();removerConta('${conta.id}')" aria-label="Remover conta">×</button></span>`).join("");
 }
-function adicionarConta(nome, icone) {
-  contas.push({ id: gerarId(), nome: nome.trim(), tipo: "outra", icone: icone || "👛", cor: "#6366f1", saldoInicial: 0 });
+function adicionarConta(nome, icone, saldoInicial) {
+  contas.push({ id: gerarId(), nome: nome.trim(), tipo: "outra", icone: icone || "👛", cor: "#6366f1", saldoInicial: Number.isFinite(saldoInicial) ? saldoInicial : 0 });
   salvar();
   renderizarContasHome();
   renderizarContasAjustes();
   fecharModal();
+  atualizar();
+}
+function editarConta(id) {
+  const conta = contas.find(c => c.id === id);
+  if (!conta) return;
+  abrirModal("Editar conta", `
+    <form id="formEditarConta" class="form-group">
+      <input id="editContaNome" maxlength="30" value="${seguro(conta.nome)}" required>
+      <input id="editContaSaldo" type="number" step="0.01" inputmode="decimal" value="${conta.saldoInicial || 0}" placeholder="Saldo inicial">
+      <p class="form-erro" id="erroEditarConta" hidden></p>
+      <div class="modal-acoes">
+        <button type="button" class="btn-secundario" onclick="fecharModal()">Cancelar</button>
+        <button type="submit" class="btn-primary">Salvar</button>
+      </div>
+    </form>`);
+  document.getElementById("formEditarConta").addEventListener("submit", (evento) => {
+    evento.preventDefault();
+    const erroEl = document.getElementById("erroEditarConta");
+    const novoNome = document.getElementById("editContaNome").value.trim();
+    const novoSaldo = Number(document.getElementById("editContaSaldo").value);
+    if (!novoNome) return mostrarErroForm(erroEl, "Dê um nome para a conta.");
+    conta.nome = novoNome;
+    conta.saldoInicial = Number.isFinite(novoSaldo) ? novoSaldo : 0;
+    fecharModal();
+    atualizar();
+  });
 }
 function removerConta(id) {
   if (contas.length <= 1) { alert("Você precisa manter pelo menos uma conta."); return; }
@@ -182,7 +211,7 @@ function obterTotaisPeriodo(periodo) {
 function atualizarSaudacao() {
   const hora = new Date().getHours();
   const saudacao = hora < 12 ? "Bom dia" : hora < 18 ? "Boa tarde" : "Boa noite";
-  document.getElementById("saudacaoHeader").textContent = `${saudacao}, Guilherme 👋`;
+  document.getElementById("saudacaoHeader").textContent = `${saudacao}, ${perfil.nome} 👋`;
 }
 function atualizarData() {
   const texto = new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
@@ -235,6 +264,8 @@ function calcularAlertas() {
   metas.forEach(meta => {
     if (meta.valorAcumulado >= meta.alvo) alertas.push({ tipo: "sucesso", texto: `Parabéns! Você atingiu a meta "${meta.nome}".` });
   });
+  const prioridade = { perigo: 0, alerta: 1, sucesso: 2 };
+  alertas.sort((a, b) => prioridade[a.tipo] - prioridade[b.tipo]);
   return alertas.slice(0, 4);
 }
 function renderizarAlertas() {
@@ -508,7 +539,9 @@ function atualizar() {
   document.getElementById("saldo").textContent = moeda(saldoDisponivel);
   document.getElementById("receitas").textContent = moeda(mes.receita);
   document.getElementById("despesas").textContent = moeda(mes.despesa);
-  document.getElementById("economia").textContent = moeda(Math.max(economiaMes, 0));
+  const economiaEl = document.getElementById("economia");
+  economiaEl.textContent = moeda(economiaMes);
+  economiaEl.classList.toggle("valor-negativo", economiaMes < 0);
   document.getElementById("cartao").textContent = moeda(mes.cartao);
 
   atualizarTendencia(economiaMes, economiaPassada);
@@ -793,7 +826,7 @@ function exportarBackup() {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `finance-premium-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  link.download = `nexora-finance-backup-${new Date().toISOString().slice(0, 10)}.json`;
   link.click();
   URL.revokeObjectURL(url);
 }
@@ -815,7 +848,7 @@ function importarBackup(evento) {
       atualizar();
       alert("Backup importado com sucesso.");
     } catch {
-      alert("Arquivo inválido. Verifique se é um backup do Finance Premium.");
+      alert("Arquivo inválido. Verifique se é um backup do Nexora Finance.");
     }
   };
   leitor.readAsText(arquivo);
@@ -835,6 +868,13 @@ document.getElementById("focoFormulario").addEventListener("click", abrirNovoLan
 document.getElementById("limparTudo").addEventListener("click", () => { if (dados.length && confirm("Excluir todos os lançamentos?")) { dados = []; itemSelecionadoId = null; atualizar(); } });
 document.querySelectorAll(".bottom-nav .nav-btn").forEach(botao => botao.addEventListener("click", () => abrirAba(botao.dataset.view)));
 document.getElementById("toggleTema").addEventListener("click", alternarTema);
+document.getElementById("perfilNomeInput").value = perfil.nome;
+document.getElementById("perfilNomeInput").addEventListener("change", (evento) => {
+  const novoNome = evento.target.value.trim() || "Você";
+  perfil.nome = novoNome;
+  localStorage.setItem(PERFIL_KEY, JSON.stringify(perfil));
+  atualizarSaudacao();
+});
 
 document.getElementById("mesAnterior").addEventListener("click", () => { mesSelecionado.setMonth(mesSelecionado.getMonth() - 1); itemSelecionadoId = null; diaCalendarioSelecionado = null; atualizar(); });
 document.getElementById("mesProximo").addEventListener("click", () => { mesSelecionado.setMonth(mesSelecionado.getMonth() + 1); itemSelecionadoId = null; diaCalendarioSelecionado = null; atualizar(); });
@@ -890,6 +930,7 @@ document.getElementById("abrirNovaConta").addEventListener("click", () => {
     <form id="formNovaConta" class="form-group">
       <input id="novaContaNome" maxlength="30" placeholder="Nome da conta (ex.: Nubank)" required>
       <input id="novaContaIcone" maxlength="4" placeholder="Emoji (opcional)">
+      <input id="novaContaSaldo" type="number" step="0.01" inputmode="decimal" placeholder="Saldo inicial (opcional)">
       <p class="form-erro" id="erroNovaConta" hidden></p>
       <div class="modal-acoes">
         <button type="button" class="btn-secundario" onclick="fecharModal()">Cancelar</button>
@@ -902,8 +943,9 @@ document.getElementById("abrirNovaConta").addEventListener("click", () => {
     const erroEl = document.getElementById("erroNovaConta");
     const nome = document.getElementById("novaContaNome").value.trim();
     const icone = document.getElementById("novaContaIcone").value.trim();
+    const saldoInicial = Number(document.getElementById("novaContaSaldo").value) || 0;
     if (!nome) return mostrarErroForm(erroEl, "Dê um nome para a conta.");
-    adicionarConta(nome, icone);
+    adicionarConta(nome, icone, saldoInicial);
   });
 });
 
