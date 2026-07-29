@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#0F172A">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Finance">
-  <title>Finance Premium</title>
+  <meta name="apple-mobile-web-app-title" content="Nexora">
+  <title>Nexora Finance</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icons/icon.svg">
   <link rel="stylesheet" href="style.css">
@@ -15,7 +15,7 @@
 <body>
   <main class="app" id="homeView">
     <header class="header">
-      <div class="header-info"><span id="saudacaoHeader">Olá, Guilherme 👋</span><h1>Finance Premium</h1></div>
+      <div class="header-info"><span id="saudacaoHeader">Olá 👋</span><h1>Nexora Finance</h1></div>
       <button class="profile-btn" type="button" aria-label="Perfil">👤</button>
     </header>
 
@@ -30,12 +30,14 @@
       <div id="alertasLista"></div>
     </section>
 
+    <h3 class="mini-titulo">Suas contas</h3>
     <section class="cards-scroll" id="contasScroll" aria-label="Suas contas"></section>
 
+    <h3 class="mini-titulo">Resumo do mês</h3>
     <section class="cards-scroll" aria-label="Resumo financeiro">
       <div class="mini-card receita"><span class="mini-icone">💰</span><span>Receitas</span><h3 id="receitas">R$ 0,00</h3></div>
       <div class="mini-card despesa"><span class="mini-icone">💸</span><span>Despesas</span><h3 id="despesas">R$ 0,00</h3></div>
-      <div class="mini-card investimento"><span class="mini-icone">🐷</span><span>Economizado</span><h3 id="economia">R$ 0,00</h3></div>
+      <div class="mini-card economia"><span class="mini-icone">🐷</span><span>Economizado</span><h3 id="economia">R$ 0,00</h3></div>
       <div class="mini-card cartao"><span class="mini-icone">💳</span><span>Cartão</span><h3 id="cartao">R$ 0,00</h3></div>
     </section>
 
@@ -94,6 +96,10 @@
   <main class="app view" id="ajustesView" hidden>
     <header class="page-header"><span>Preferências</span><h1>Ajustes</h1></header>
     <section class="card">
+      <h2 class="titulo-card">Perfil</h2>
+      <input id="perfilNomeInput" maxlength="30" placeholder="Seu nome">
+    </section>
+    <section class="card">
       <h2 class="titulo-card">Aparência</h2>
       <div class="tema-switch">
         <span>Tema escuro</span>
@@ -102,6 +108,7 @@
     </section>
     <section class="card">
       <h2 class="titulo-card">Contas</h2>
+      <p class="ajuda-texto">Toque numa conta para editar o nome ou o saldo inicial.</p>
       <div class="categorias-lista" id="contasLista"></div>
       <button type="button" id="abrirNovaConta" class="btn-secundario">+ Nova conta</button>
     </section>
@@ -124,7 +131,7 @@
     </section>
     <section class="card">
       <h2 class="titulo-card">Sobre</h2>
-      <p class="sobre-texto">Finance Premium v1.0 — seus dados ficam salvos apenas neste dispositivo.</p>
+      <p class="sobre-texto">Nexora Finance v1.0 — seus dados ficam salvos apenas neste dispositivo.</p>
     </section>
   </main>
 
