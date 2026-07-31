@@ -33,7 +33,13 @@
     <h3 class="mini-titulo">Suas contas</h3>
     <section class="cards-scroll" id="contasScroll" aria-label="Suas contas"></section>
 
-    <h3 class="mini-titulo">Resumo do mês</h3>
+    <div class="mes-nav">
+      <button type="button" id="mesAnterior" aria-label="Mês anterior">‹</button>
+      <span id="mesAtualLabel"></span>
+      <button type="button" id="mesProximo" aria-label="Próximo mês">›</button>
+    </div>
+
+    <h3 class="mini-titulo" id="resumoMesTitulo">Resumo do mês</h3>
     <section class="cards-scroll" aria-label="Resumo financeiro">
       <div class="mini-card receita"><span class="mini-icone">💰</span><span>Receitas</span><h3 id="receitas">R$ 0,00</h3></div>
       <div class="mini-card despesa"><span class="mini-icone">💸</span><span>Despesas</span><h3 id="despesas">R$ 0,00</h3></div>
@@ -43,22 +49,17 @@
 
     <section class="card destaque-card" id="destaqueCard" hidden>
       <div class="destaque-icone" id="destaqueIcone"></div>
-      <div><span style="color:var(--muted);font-size:13px">Maior gasto do mês</span><strong id="destaqueTexto"></strong></div>
+      <div><span id="destaqueLabel" style="color:var(--muted);font-size:13px">Maior gasto do mês</span><strong id="destaqueTexto"></strong></div>
     </section>
 
     <section class="card grafico-card">
-      <h2 class="titulo-card">Gastos do mês</h2>
+      <h2 class="titulo-card" id="graficoTitulo">Gastos do mês</h2>
       <div class="grafico-wrap"><canvas id="graficoFinanceiro" aria-label="Gráfico de receitas e despesas"></canvas><p id="graficoVazio">Adicione lançamentos para visualizar o gráfico.</p></div>
       <div class="grafico-legenda" id="graficoLegenda"></div>
     </section>
 
     <section class="transacoes">
       <div class="secao-header"><h2>Transações</h2><button id="limparTudo" type="button">Limpar tudo</button></div>
-      <div class="mes-nav">
-        <button type="button" id="mesAnterior" aria-label="Mês anterior">‹</button>
-        <span id="mesAtualLabel"></span>
-        <button type="button" id="mesProximo" aria-label="Próximo mês">›</button>
-      </div>
       <div class="tabs-transacoes">
         <button type="button" class="tab-transacao active" data-aba="todos">Todos</button>
         <button type="button" class="tab-transacao" data-aba="receitas">Receitas</button>
