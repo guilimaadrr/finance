@@ -177,13 +177,6 @@ function removerCategoria(chave) {
 }
 
 /* ===== CÁLCULO DE TOTAIS ===== */
-function estaNoMes(item, offsetMeses = 0) {
-  const dataISO = item.dataVencimento || item.criadoEm.slice(0, 10);
-  const data = new Date(dataISO + "T00:00:00");
-  const referencia = new Date();
-  referencia.setMonth(referencia.getMonth() + offsetMeses);
-  return data.getMonth() === referencia.getMonth() && data.getFullYear() === referencia.getFullYear();
-}
 function mesmaCompetencia(item, mesData) {
   const dataISO = item.dataVencimento || item.criadoEm.slice(0, 10);
   const dataRef = new Date(dataISO + "T00:00:00");
@@ -199,7 +192,14 @@ function calcularTotais(filtro) {
     return resultado;
   }, { receita: 0, despesa: 0, cartao: 0, categorias: {} });
 }
-function totaisPorMes(offsetMeses) { return calcularTotais(item => estaNoMes(item, offsetMeses)); }
+function totaisPorMes(offsetMeses) {
+  const alvo = new Date(); alvo.setDate(1); alvo.setMonth(alvo.getMonth() + offsetMeses);
+  return calcularTotais(item => mesmaCompetencia(item, alvo));
+}
+function totaisDoMesSelecionado(offsetMeses = 0) {
+  const alvo = new Date(mesSelecionado.getFullYear(), mesSelecionado.getMonth() + offsetMeses, 1);
+  return calcularTotais(item => mesmaCompetencia(item, alvo));
+}
 function totaisTudo() { return calcularTotais(null); }
 function obterTotaisPeriodo(periodo) {
   if (periodo === "mes") return totaisPorMes(0);
@@ -224,7 +224,7 @@ function atualizarTendencia(atual, anterior) {
   const positivo = variacao >= 0;
   const seta = positivo ? "▲" : "▼";
   const classe = positivo ? "trend-alta" : "trend-baixa";
-  el.innerHTML = `<span class="${classe}">${seta} ${Math.abs(variacao).toFixed(0)}%</span><small>vs mês passado</small>`;
+  el.innerHTML = `<span class="${classe}">${seta} ${Math.abs(variacao).toFixed(0)}%</span><small>vs mês anterior</small>`;
 }
 function atualizarDestaque(categorias, totalDespesas) {
   const card = document.getElementById("destaqueCard");
@@ -383,9 +383,6 @@ function renderizarListaEm(container, itens) {
     </article>`;
   }).join("");
 }
-function renderizarListaTransacoes(itens) {
-  renderizarListaEm(document.getElementById("lancamentos"), itens);
-}
 
 /* ===== CALENDÁRIO ===== */
 function renderizarCalendario() {
@@ -528,13 +525,17 @@ function renderRelatorio() {
 function atualizar() {
   processarRecorrencias();
   const saldoDisponivel = saldoTotalGeral();
-  const mes = totaisPorMes(0);
-  const mesPassado = totaisPorMes(-1);
+  const mes = totaisDoMesSelecionado(0);
+  const mesPassado = totaisDoMesSelecionado(-1);
   const economiaMes = mes.receita - mes.despesa;
   const economiaPassada = mesPassado.receita - mesPassado.despesa;
+  const nomeMesSelecionado = mesSelecionado.toLocaleDateString("pt-BR", { month: "long" });
 
   atualizarSaudacao();
   atualizarData();
+  document.getElementById("resumoMesTitulo").textContent = `Resumo de ${nomeMesSelecionado}`;
+  document.getElementById("graficoTitulo").textContent = `Gastos de ${nomeMesSelecionado}`;
+  document.getElementById("destaqueLabel").textContent = `Maior gasto em ${nomeMesSelecionado}`;
 
   document.getElementById("saldo").textContent = moeda(saldoDisponivel);
   document.getElementById("receitas").textContent = moeda(mes.receita);
@@ -553,7 +554,7 @@ function atualizar() {
   const itensDoMesTransacoes = renderizarResumoMes();
   document.getElementById("lancamentos").hidden = modoTransacao !== "lista";
   document.getElementById("calendarioContainer").hidden = modoTransacao !== "calendario";
-  if (modoTransacao === "lista") renderizarListaTransacoes(itensDoMesTransacoes);
+  if (modoTransacao === "lista") renderizarListaEm(document.getElementById("lancamentos"), itensDoMesTransacoes);
   else renderizarCalendario();
   renderizarDetalhe();
 
@@ -956,7 +957,7 @@ document.getElementById("modalOverlay").addEventListener("click", (evento) => {
 window.addEventListener("resize", () => {
   clearTimeout(resizeTimeout);
   resizeTimeout = setTimeout(() => {
-    const mes = totaisPorMes(0);
+    const mes = totaisDoMesSelecionado(0);
     desenharGrafico(mes.receita, mes.despesa);
   }, 150);
 });
